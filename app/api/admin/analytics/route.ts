@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import * as db from '@/lib/db';
 
 interface AnalyticsData {
@@ -12,7 +11,7 @@ interface AnalyticsData {
     totalRedeemed: number;
     totalFailed: number;
     redemptionRate: number;
-    averageTimeToRedeem: number; // in seconds
+    averageTimeToRedeem: number;
   };
   trends: Array<{
     date: string;
@@ -35,26 +34,26 @@ interface AnalyticsData {
   }>;
 }
 
-export async function GET(request: NextRequest) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const searchParams = request.nextUrl.searchParams;
     const startDateStr = searchParams.get('startDate') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const endDateStr = searchParams.get('endDate') || new Date().toISOString().split('T')[0];
     const productId = searchParams.get('productId');
+    const resellerId = searchParams.get('resellerId');
 
     const startDate = new Date(startDateStr);
     const endDate = new Date(endDateStr);
-    endDate.setHours(23, 59, 59, 999); // Include entire end day
+    endDate.setHours(23, 59, 59, 999);
 
-    // Get user's batches
-    const batches = await db.getBatches(userId);
-    const batchIds = batches.map((b) => b.id);
+    let batches;
+    if (resellerId) {
+      batches = await db.getBatches(parseInt(resellerId));
+    } else {
+      const result = await db.query(`SELECT id FROM batches ORDER BY id ASC`, []);
+      batches = result.rows.map((row: any) => ({ id: row.id }));
+    }
+    const batchIds = batches.map((b: any) => b.id);
 
     if (batchIds.length === 0) {
       return NextResponse.json({
@@ -72,7 +71,6 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Build WHERE clause
     let whereClause = `batch_id IN (${batchIds.join(',')}) AND created_at >= $1 AND created_at <= $2`;
     const params: any[] = [startDate, endDate];
 
@@ -81,21 +79,18 @@ export async function GET(request: NextRequest) {
       params.push(productId);
     }
 
-    // Get total codes in period
     const codesResult = await db.query(
       `SELECT COUNT(*) as count FROM redemption_codes WHERE ${whereClause}`,
       params
     );
     const totalCodes = codesResult.rows[0]?.count || 0;
 
-    // Get redeemed codes
     const redeemedResult = await db.query(
       `SELECT COUNT(*) as count FROM redemption_codes WHERE ${whereClause} AND status = 'utilisé'`,
       params
     );
     const totalRedeemed = redeemedResult.rows[0]?.count || 0;
 
-    // Get failed orders (from activity log)
     const failedResult = await db.query(
       `SELECT COUNT(*) as count FROM activity_log
        WHERE event_type = 'order_failed' AND created_at >= $1 AND created_at <= $2`,
@@ -105,7 +100,6 @@ export async function GET(request: NextRequest) {
 
     const redemptionRate = totalCodes > 0 ? (totalRedeemed / totalCodes) * 100 : 0;
 
-    // Get average time to redeem (KYC submission to order completion)
     const timeResult = await db.query(
       `SELECT AVG(EXTRACT(EPOCH FROM (al.created_at - al2.created_at))) as avg_seconds
        FROM activity_log al
@@ -117,7 +111,6 @@ export async function GET(request: NextRequest) {
     );
     const averageTimeToRedeem = timeResult.rows[0]?.avg_seconds || 0;
 
-    // Get daily trends
     const trendsResult = await db.query(
       `SELECT
          DATE(rc.created_at) as date,
@@ -139,7 +132,6 @@ export async function GET(request: NextRequest) {
       rate: row.total > 0 ? Math.round((parseInt(row.redeemed || 0) / row.total) * 100 * 100) / 100 : 0,
     }));
 
-    // Get by product stats
     const productResult = await db.query(
       `SELECT
          b.mobimatter_product_id,
@@ -165,7 +157,6 @@ export async function GET(request: NextRequest) {
       rate: row.total > 0 ? Math.round((parseInt(row.redeemed || 0) / row.total) * 100 * 100) / 100 : 0,
     }));
 
-    // Get error breakdown
     const errorsResult = await db.query(
       `SELECT
          CASE
