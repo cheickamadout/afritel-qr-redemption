@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     let overallStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
 
     // Get batch statistics
-    const result = await db.query(`SELECT id FROM batches ORDER BY id ASC`, []);
-    const batches = result.rows.map((row: any) => ({ id: row.id }));
+    const batchResult = await db.query(`SELECT id FROM batches ORDER BY id ASC`, []);
+    const batches = batchResult.rows.map((row: any) => ({ id: row.id }));
     const totalBatches = batches.length;
     const totalCodes = batches.reduce((sum, b) => sum + b.quantity_generated, 0);
     const totalRedeemed = batches.reduce((sum, b) => sum + b.quantity_redeemed, 0);
