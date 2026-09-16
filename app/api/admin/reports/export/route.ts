@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import * as db from '@/lib/db';
 import { stringify } from 'csv-stringify/sync';
 
+// @ts-ignore
 export async function GET(request: NextRequest) {
   const { userId } = await auth();
 
