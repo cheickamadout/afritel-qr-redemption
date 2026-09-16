@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as db from '@/lib/db';
 import { stringify } from 'csv-stringify/sync';
+// @ts-ignore
 import PDFDocument from 'pdfkit';
 
 export async function GET(
