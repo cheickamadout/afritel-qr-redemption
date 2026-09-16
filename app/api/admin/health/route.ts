@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import * as db from '@/lib/db';
 
 interface HealthData {
@@ -21,18 +20,14 @@ interface HealthData {
 }
 
 export async function GET(request: NextRequest) {
-  const { userId } = await auth();
-
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  
   try {
     const alerts: HealthData['alerts'] = [];
     let overallStatus: 'healthy' | 'warning' | 'critical' = 'healthy';
 
     // Get batch statistics
-    const batches = await db.getBatches(userId);
+    const result = await db.query(`SELECT id FROM batches ORDER BY id ASC`, []);
+    const batches = result.rows.map((row: any) => ({ id: row.id }));
     const totalBatches = batches.length;
     const totalCodes = batches.reduce((sum, b) => sum + b.quantity_generated, 0);
     const totalRedeemed = batches.reduce((sum, b) => sum + b.quantity_redeemed, 0);
