@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MobimatterAPI } from '@/lib/mobimatter';
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const products = await MobimatterAPI.getProducts();
     return NextResponse.json(products);
